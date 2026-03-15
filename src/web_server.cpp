@@ -10,6 +10,7 @@
 static AsyncWebServer  server(80);
 static NetworkEntry*        g_nets       = nullptr;
 static volatile int*        g_count      = nullptr;
+static ChannelStat*         g_channels   = nullptr;
 static SemaphoreHandle_t*   g_mutex      = nullptr;
 static volatile uint32_t*   g_scanCount  = nullptr;
 static volatile bool*       g_scanning   = nullptr;
@@ -68,6 +69,31 @@ td{padding:.4rem .5rem;border-bottom:1px solid #1a2535;vertical-align:middle}
 select{background:#1e293b;color:var(--text);border:1px solid var(--border);
        padding:.3rem .5rem;border-radius:4px;font-size:.85rem}
 .dbg-row{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+.chart-card{margin-bottom:1rem}
+.chart-wrap{margin-top:.2rem}
+.chart-svg{width:100%;height:220px;display:block}
+.axis{stroke:#334155;stroke-width:1}
+.gridline{stroke:#1e293b;stroke-width:1}
+.chan-fill{fill:rgba(6,182,212,.14);stroke:rgba(6,182,212,.9);stroke-width:3}
+.chan-dot{fill:#06b6d4;stroke:#0a0f1a;stroke-width:2}
+.chan-label{fill:#94a3b8;font-size:12px;font-weight:600}
+.chan-label.hot{fill:#e2e8f0}
+.chan-count{fill:#e2e8f0;font-size:12px;font-weight:700}
+.hint{color:var(--muted);font-size:.78rem;margin-top:.35rem}
+.detail-card{margin-top:.9rem;padding:.8rem;border:1px solid #1a2535;border-radius:8px;background:#0d1624}
+.detail-head{display:flex;justify-content:space-between;align-items:center;gap:1rem;margin-bottom:.5rem;flex-wrap:wrap}
+.detail-title{font-size:.85rem;font-weight:700;color:#e2e8f0}
+.detail-meta{font-size:.76rem;color:var(--muted)}
+.detail-list{display:grid;gap:.45rem}
+.detail-row{display:grid;grid-template-columns:minmax(0,1.5fr) 62px 52px 84px;gap:.6rem;align-items:center;font-size:.82rem}
+.detail-row.head{color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-size:.68rem}
+.detail-ssid{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.detail-group{margin-top:.65rem}
+.detail-group-title{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.35rem}
+.impact{display:inline-block;padding:.12rem .4rem;border-radius:999px;font-size:.72rem;font-weight:700;text-align:center}
+.impact-3{background:rgba(239,68,68,.18);color:#fca5a5}
+.impact-2{background:rgba(234,179,8,.18);color:#fde047}
+.impact-1{background:rgba(34,197,94,.16);color:#86efac}
 </style>
 </head>
 <body>
@@ -107,6 +133,20 @@ select{background:#1e293b;color:var(--text);border:1px solid var(--border);
 
 <div class="card">
   <div class="net-hdr">
+    <h2>Channel Congestion &nbsp;<span id="hot-ch" style="color:var(--cyan)">--</span></h2>
+    <div class="controls">
+      <span class="age">2.4 GHz overlap model</span>
+    </div>
+  </div>
+  <div class="chart-wrap">
+    <svg id="channel-chart" class="chart-svg" viewBox="0 0 760 220" preserveAspectRatio="none" aria-label="Channel congestion graph"></svg>
+  </div>
+  <p class="hint">Higher peaks mean more nearby AP overlap and stronger interference around that channel.</p>
+  <div id="channel-detail"></div>
+</div>
+
+<div class="card">
+  <div class="net-hdr">
     <h2>Networks &nbsp;<span id="net-cnt" style="color:var(--cyan)">--</span></h2>
     <div class="controls">
       <span class="age" id="scan-age"></span>
@@ -130,6 +170,10 @@ select{background:#1e293b;color:var(--text);border:1px solid var(--border);
 
 <script>
 let lastScanTs = 0;
+let lastNetworks = [];
+let selectedChannel = 1;
+
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
 function bars(rssi){
   const lit = rssi > -50 ? 5 : rssi > -65 ? 4 : rssi > -75 ? 2 : 1;
@@ -141,7 +185,6 @@ function bars(rssi){
   }
   return h+'</span>';
 }
-function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function fmtHeap(b){return(b/1024).toFixed(1)+' KB';}
 function fmtUp(ms){
   const s=Math.floor(ms/1000);
@@ -150,10 +193,167 @@ function fmtUp(ms){
   return Math.floor(s/3600)+'h '+Math.floor(s%3600/60)+'m';
 }
 
+function overlapImpact(netChannel, targetChannel){
+  const delta=Math.abs(netChannel-targetChannel);
+  if(delta>2) return 0;
+  return 3-delta;
+}
+
+function weightBand(weight){
+  if(weight>=3) return {label:'High', cls:'impact-3'};
+  if(weight===2) return {label:'Med', cls:'impact-2'};
+  return {label:'Low', cls:'impact-1'};
+}
+
+function contributorRows(channel){
+  return lastNetworks
+    .map((n)=>{
+      const impact=overlapImpact(n.channel, channel);
+      if(!impact) return null;
+      return {
+        ssid:n.ssid || '<hidden>',
+        channel:n.channel,
+        rssi:n.rssi,
+        secure:n.secure,
+        impact,
+        onChannel:n.channel===channel
+      };
+    })
+    .filter(Boolean)
+    .sort((a,b)=>Number(b.onChannel)-Number(a.onChannel) || b.impact-a.impact || b.rssi-a.rssi || a.channel-b.channel);
+}
+
+function contributorGroup(title, rows){
+  if(!rows.length) return '';
+  return `
+    <div class="detail-group">
+      <div class="detail-group-title">${title}</div>
+      <div class="detail-list">
+        <div class="detail-row head">
+          <span>SSID</span><span>AP Ch</span><span>RSSI</span><span>Impact</span>
+        </div>
+        ${rows.map(row=>{
+          const band=weightBand(row.impact);
+          return `
+            <div class="detail-row">
+              <span class="detail-ssid">${esc(row.ssid)}</span>
+              <span>${row.channel}</span>
+              <span>${row.rssi}</span>
+              <span><span class="impact ${band.cls}">${band.label} (${row.impact})</span></span>
+            </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+}
+
+function renderChannelDetails(channel, channels){
+  const host=document.getElementById('channel-detail');
+  const stat=(channels||[]).find(c=>c.channel===channel);
+  const contributors=contributorRows(channel);
+  const onChannel=contributors.filter(row=>row.onChannel);
+  const adjacent=contributors.filter(row=>!row.onChannel);
+
+  if(!stat){
+    host.innerHTML='<div class="detail-card"><div class="detail-title">Channel details unavailable</div></div>';
+    return;
+  }
+
+  if(!contributors.length){
+    host.innerHTML=`
+      <div class="detail-card">
+        <div class="detail-head">
+          <div>
+            <div class="detail-title">Channel ${channel} contributors</div>
+            <div class="detail-meta">Score ${stat.score} · 0 contributing networks</div>
+          </div>
+        </div>
+        <div class="detail-meta">No scanned networks overlap this channel.</div>
+      </div>`;
+    return;
+  }
+
+  host.innerHTML=`
+    <div class="detail-card">
+      <div class="detail-head">
+        <div>
+          <div class="detail-title">Channel ${channel} contributors</div>
+          <div class="detail-meta">Score ${stat.score} · ${stat.count} APs on-channel · ${contributors.length} overlapping networks</div>
+        </div>
+        <div class="detail-meta">Tap another channel point to inspect it</div>
+      </div>
+      ${contributorGroup(`On-channel (${onChannel.length})`, onChannel)}
+      ${contributorGroup(`Adjacent-channel (${adjacent.length})`, adjacent)}
+    </div>`;
+}
+
+function renderChannelGraph(channels){
+  const svg=document.getElementById('channel-chart');
+  if(!channels.length){
+    document.getElementById('hot-ch').textContent='--';
+    svg.innerHTML='';
+    document.getElementById('channel-detail').innerHTML='';
+    return;
+  }
+  const width=760, height=220;
+  const left=26, right=18, top=18, bottom=32;
+  const graphW=width-left-right, graphH=height-top-bottom;
+  const maxScore=Math.max(1,...channels.map(c=>c.score));
+  const step=graphW/Math.max(1,channels.length-1);
+
+  const pts=channels.map((c,i)=>{
+    const x=left+i*step;
+    const y=top+graphH-(c.score/maxScore)*graphH;
+    return {x,y,c};
+  });
+
+  const area=[
+    `M ${pts[0].x} ${top+graphH}`,
+    ...pts.map(p=>`L ${p.x} ${p.y}`),
+    `L ${pts[pts.length-1].x} ${top+graphH}`,
+    'Z'
+  ].join(' ');
+
+  const line=['M',pts[0].x,pts[0].y,...pts.slice(1).flatMap(p=>['L',p.x,p.y])].join(' ');
+  const hot=channels.reduce((best,c)=>c.score>best.score?c:best,channels[0]||{channel:'--',score:0});
+  if(!channels.some(c=>c.channel===selectedChannel)) selectedChannel=hot.channel;
+  document.getElementById('hot-ch').textContent=`Hot channel: ${hot.channel}`;
+
+  let markup='';
+  for(let i=0;i<4;i++){
+    const y=top+graphH-(graphH*i/3);
+    markup+=`<line class="gridline" x1="${left}" y1="${y}" x2="${width-right}" y2="${y}" />`;
+  }
+  markup+=`<line class="axis" x1="${left}" y1="${top+graphH}" x2="${width-right}" y2="${top+graphH}" />`;
+  markup+=`<path class="chan-fill" d="${area}" />`;
+  markup+=`<path d="${line}" fill="none" stroke="#22d3ee" stroke-width="3" />`;
+
+  pts.forEach((p,i)=>{
+    const hotClass=p.c.channel===hot.channel?'hot':'';
+    const selected=p.c.channel===selectedChannel;
+    markup+=`<circle class="chan-dot" cx="${p.x}" cy="${p.y}" r="4" />`;
+    markup+=`<circle cx="${p.x}" cy="${p.y}" r="${selected?10:8}" fill="transparent" stroke="${selected?'#f8fafc':'transparent'}" stroke-width="2" style="cursor:pointer" onclick="selectChannel(${p.c.channel})" />`;
+    if(p.c.count>0){
+      markup+=`<text class="chan-count" x="${p.x}" y="${Math.max(top+10,p.y-8)}" text-anchor="middle">${p.c.count}</text>`;
+    }
+    markup+=`<text class="chan-label ${hotClass}" x="${p.x}" y="${height-10}" text-anchor="middle" style="cursor:pointer" onclick="selectChannel(${p.c.channel})">${i+1}</text>`;
+  });
+
+  svg.innerHTML=markup;
+  renderChannelDetails(selectedChannel, channels);
+}
+
+function selectChannel(channel){
+  selectedChannel=channel;
+  renderChannelGraph(window.lastChannels || []);
+}
+
 async function fetchNets(){
   try{
     const d=await(await fetch('/api/networks')).json();
     lastScanTs=d.scanTime;
+    lastNetworks=d.networks||[];
+    window.lastChannels=d.channels||[];
+    renderChannelGraph(d.channels||[]);
     document.getElementById('net-cnt').textContent=d.count;
     if(!d.count){
       document.getElementById('tbody').innerHTML=
@@ -229,12 +429,13 @@ static void handleRoot(AsyncWebServerRequest* req)
 
 static void handleNetworks(AsyncWebServerRequest* req)
 {
-    StaticJsonDocument<4096> doc;
+    StaticJsonDocument<6144> doc;
     doc["count"]    = *g_count;
     doc["scanTime"] = *g_lastScanMs / 1000;  // epoch-like seconds (millis/1000)
     doc["scanning"] = *g_scanning;
 
     JsonArray arr = doc.createNestedArray("networks");
+    JsonArray channelArr = doc.createNestedArray("channels");
 
     xSemaphoreTake(*g_mutex, pdMS_TO_TICKS(200));
     for (int i = 0; i < *g_count; i++) {
@@ -244,6 +445,13 @@ static void handleNetworks(AsyncWebServerRequest* req)
         o["channel"] = g_nets[i].channel;
         o["secure"]  = g_nets[i].secure;
         o["band"]    = g_nets[i].is5GHz ? "5GHz" : "2.4GHz";
+    }
+    for (int i = 0; i < MAX_WIFI_CHANNELS; i++) {
+        JsonObject c = channelArr.createNestedObject();
+        c["channel"] = g_channels[i].channel;
+        c["count"]   = g_channels[i].apCount;
+        c["peakRssi"] = g_channels[i].peakRssi;
+        c["score"]   = g_channels[i].score;
     }
     xSemaphoreGive(*g_mutex);
 
@@ -294,6 +502,7 @@ static void handleDebugGet(AsyncWebServerRequest* req)
 void initWebServer(
     NetworkEntry*       nets,
     volatile int*       netCount,
+    ChannelStat*        channels,
     SemaphoreHandle_t*  mutex,
     volatile uint32_t*  scanCount,
     volatile bool*      scanning,
@@ -302,6 +511,7 @@ void initWebServer(
 {
     g_nets        = nets;
     g_count       = netCount;
+    g_channels    = channels;
     g_mutex       = mutex;
     g_scanCount   = scanCount;
     g_scanning    = scanning;

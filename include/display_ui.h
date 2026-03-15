@@ -16,6 +16,18 @@ struct NetworkEntry {
     uint8_t  sigBars;      // 0-5 filled bars
 };
 
+struct ChannelStat {
+    uint8_t channel;
+    uint8_t apCount;
+    int16_t peakRssi;
+    uint16_t score;
+};
+
+enum UIViewMode : uint8_t {
+    VIEW_LIST = 0,
+    VIEW_CHANNELS
+};
+
 // ============================================================
 // Display API
 // ============================================================
@@ -32,11 +44,14 @@ void drawWiFiManagerScreen(const char* apName);
 // Persistent header bar  (ipStr may be nullptr → shows "--")
 void drawHeader(const char* ipStr, bool scanning);
 
-// Persistent footer bar with UP / network count / SCAN buttons
-void drawFooter(int networkCount, uint32_t lastScanMs);
+// Persistent footer bar with VIEW toggle / status / SCAN button
+void drawFooter(int networkCount, uint32_t lastScanMs, UIViewMode viewMode);
 
 // Redraws the scrollable network list area
 void drawNetworkList(const NetworkEntry* nets, int count, int scrollOffset);
+
+// Redraws the 2.4 GHz channel congestion graph
+void drawCongestionGraph(const ChannelStat* stats, int count, uint8_t hottestChannel);
 
 // Small "Scanning…" overlay in the centre of the network area
 void drawScanningOverlay();

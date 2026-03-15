@@ -18,6 +18,7 @@ uint8_t debugLevel = DEBUG_LEVEL;
 // Shared scan state  (accessed from loop + web server task)
 // ============================================================
 static NetworkEntry       networks[MAX_NETWORKS];
+static ChannelStat        channelStats[MAX_WIFI_CHANNELS];
 static volatile int       networkCount   = 0;
 static volatile uint32_t  scanCount      = 0;
 static volatile bool      scanInProgress = false;
@@ -37,13 +38,16 @@ static XPT2046_Touchscreen ts(TOUCH_CS_PIN, TOUCH_IRQ_PIN);
 static int      scrollOffset = 0;
 static uint32_t lastTouchMs  = 0;
 static char     deviceIP[20] = "--";
+static UIViewMode viewMode   = VIEW_LIST;
+static uint8_t    hottestChannel = 1;
 
 // ============================================================
 // Forward declarations
 // ============================================================
 static void requestScan();   // safe to call from any task/context
 static void doScan();        // blocking synchronous scan — call from loop() only
-static void redrawList();
+static void rebuildChannelStats();
+static void redrawActiveView();
 
 // ============================================================
 // WiFiManager AP-mode callback
@@ -128,6 +132,8 @@ static void doScan()
             e.is5GHz ? "5GHz" : "2.4G",
             e.secure  ? "sec"  : "open");
     }
+
+    rebuildChannelStats();
     xSemaphoreGive(networkMutex);
 
     WiFi.scanDelete();
@@ -137,19 +143,59 @@ static void doScan()
     int maxScroll = max(0, (int)networkCount - MAX_VISIBLE);
     if (scrollOffset > maxScroll) scrollOffset = maxScroll;
 
-    redrawList();
+    redrawActiveView();
     DBG_INFO("Heap after scan: %u free", ESP.getFreeHeap());
 }
 
 // ============================================================
-// Display helper
+// Display + channel summary helpers
 // ============================================================
-static void redrawList()
+static void rebuildChannelStats()
+{
+    hottestChannel = 1;
+
+    for (int i = 0; i < MAX_WIFI_CHANNELS; i++) {
+        channelStats[i].channel  = i + 1;
+        channelStats[i].apCount  = 0;
+        channelStats[i].peakRssi = -100;
+        channelStats[i].score    = 0;
+    }
+
+    for (int i = 0; i < networkCount; i++) {
+        const NetworkEntry& net = networks[i];
+        if (net.channel < 1 || net.channel > MAX_WIFI_CHANNELS) continue;
+
+        ChannelStat& own = channelStats[net.channel - 1];
+        own.apCount++;
+        if (net.rssi > own.peakRssi) own.peakRssi = static_cast<int16_t>(net.rssi);
+
+        uint16_t weight = constrain(110 + net.rssi, 10, 70);
+        for (int ch = 1; ch <= MAX_WIFI_CHANNELS; ch++) {
+            int delta = abs((int)net.channel - ch);
+            if (delta > 2) continue;
+            channelStats[ch - 1].score += weight * (3 - delta);
+        }
+    }
+
+    uint16_t bestScore = 0;
+    for (int i = 0; i < MAX_WIFI_CHANNELS; i++) {
+        if (channelStats[i].score > bestScore) {
+            bestScore = channelStats[i].score;
+            hottestChannel = channelStats[i].channel;
+        }
+    }
+}
+
+static void redrawActiveView()
 {
     xSemaphoreTake(networkMutex, portMAX_DELAY);
     drawHeader(deviceIP, scanInProgress);
-    drawNetworkList(networks, networkCount, scrollOffset);
-    drawFooter(networkCount, lastScanMs);
+    if (viewMode == VIEW_CHANNELS) {
+        drawCongestionGraph(channelStats, MAX_WIFI_CHANNELS, hottestChannel);
+    } else {
+        drawNetworkList(networks, networkCount, scrollOffset);
+    }
+    drawFooter(networkCount, lastScanMs, viewMode);
     xSemaphoreGive(networkMutex);
 }
 
@@ -177,22 +223,30 @@ static void processTouch()
         if (tx >= SCREEN_W - 75) {
             DBG_INFO("Touch: SCAN button");
             requestScan();
-        } else if (tx <= 45 && scrollOffset > 0) {
-            scrollOffset--;
-            redrawList();
+        } else if (tx <= 45) {
+            viewMode = (viewMode == VIEW_LIST) ? VIEW_CHANNELS : VIEW_LIST;
+            DBG_INFO("Touch: view mode -> %s", viewMode == VIEW_CHANNELS ? "channels" : "list");
+            redrawActiveView();
         }
         return;
     }
 
     if (ty < HEADER_H) return;
 
+    if (viewMode == VIEW_CHANNELS) {
+        if (ty >= footerY) return;
+        DBG_INFO("Touch: graph area — scan requested");
+        requestScan();
+        return;
+    }
+
     int relY     = ty - HEADER_H;
     int quarterH = NET_AREA_H / 4;
 
     if (relY < quarterH) {
-        if (scrollOffset > 0) { scrollOffset--; redrawList(); }
+        if (scrollOffset > 0) { scrollOffset--; redrawActiveView(); }
     } else if (relY > NET_AREA_H - quarterH) {
-        if (scrollOffset < maxScroll) { scrollOffset++; redrawList(); }
+        if (scrollOffset < maxScroll) { scrollOffset++; redrawActiveView(); }
     } else {
         DBG_INFO("Touch: centre area — scan requested");
         requestScan();
@@ -228,6 +282,7 @@ void setup()
 
     // Mutex for shared network array
     networkMutex = xSemaphoreCreateMutex();
+    rebuildChannelStats();
 
     // WiFiManager
     DBG_INFO("Starting WiFiManager...");
@@ -260,13 +315,12 @@ void setup()
     digitalWrite(LED_G_PIN, LOW); delay(300); digitalWrite(LED_G_PIN, HIGH);
 
     // Web server — pass requestScan (not doScan) so it's safe to call from the web task
-    initWebServer(networks, &networkCount, &networkMutex,
+    initWebServer(networks, &networkCount, channelStats, &networkMutex,
                   &scanCount, &scanInProgress, &lastScanMs, requestScan);
 
     // Initial display
     drawHeader(deviceIP, false);
-    drawNetworkList(networks, 0, 0);
-    drawFooter(0, 0);
+    redrawActiveView();
 
     // Queue first scan — doScan() runs at the top of loop()
     scanRequested = true;

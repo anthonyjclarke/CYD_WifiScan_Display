@@ -9,7 +9,7 @@
 // Web Server API
 // Endpoints:
 //   GET  /                 → HTML dashboard
-//   GET  /api/networks     → JSON network list
+//   GET  /api/networks     → JSON network list + channel summary
 //   GET  /api/status       → JSON device status
 //   POST /api/scan         → trigger immediate scan
 //   GET  /api/debug        → {"level": N}
@@ -19,6 +19,7 @@
 void initWebServer(
     NetworkEntry*       nets,
     volatile int*       netCount,
+    ChannelStat*        channels,
     SemaphoreHandle_t*  mutex,
     volatile uint32_t*  scanCount,
     volatile bool*      scanning,

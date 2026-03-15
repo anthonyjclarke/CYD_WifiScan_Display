@@ -40,6 +40,7 @@ constexpr int MAX_VISIBLE = NET_AREA_H / ROW_H;               // 8 rows
 // ============================================================
 constexpr uint32_t SCAN_INTERVAL_MS  = 30000;  // 30 s auto-rescan
 constexpr uint8_t  MAX_NETWORKS      = 20;
+constexpr uint8_t  MAX_WIFI_CHANNELS = 14;
 
 // ============================================================
 // Touch Calibration  (landscape rotation 1)
@@ -72,6 +73,12 @@ constexpr uint32_t TOUCH_DEBOUNCE_MS = 300;
 #define COL_SIG_GOOD    0x07FF   // cyan    -50 to -65 dBm
 #define COL_SIG_FAIR    0xFFE0   // yellow  -65 to -75 dBm
 #define COL_SIG_WEAK    0xF800   // red     < -75 dBm
+
+// Congestion graph colours
+#define COL_CONG_LOW    0x07E0   // green
+#define COL_CONG_MID    0xFFE0   // yellow
+#define COL_CONG_HIGH   0xFD20   // orange
+#define COL_CONG_PEAK   0xF800   // red
 
 // Band badges
 #define COL_BAND_24     0x07FF   // cyan    2.4 GHz

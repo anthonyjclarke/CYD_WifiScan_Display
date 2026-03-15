@@ -57,6 +57,14 @@ static void drawBandBadge(int x, int y, bool is5GHz)
     tft.drawString(label, x + 4, y + 3);
 }
 
+static uint16_t congestionColor(uint16_t score)
+{
+    if (score >= 110) return COL_CONG_PEAK;
+    if (score >= 75)  return COL_CONG_HIGH;
+    if (score >= 40)  return COL_CONG_MID;
+    return COL_CONG_LOW;
+}
+
 // ============================================================
 // Public functions
 // ============================================================
@@ -141,19 +149,19 @@ void drawHeader(const char* ipStr, bool scanning)
     tft.setTextDatum(TL_DATUM);
 }
 
-void drawFooter(int networkCount, uint32_t lastScanMs)
+void drawFooter(int networkCount, uint32_t lastScanMs, UIViewMode viewMode)
 {
     const int fy = SCREEN_H - FOOTER_H;
 
     tft.fillRect(0, fy, SCREEN_W, FOOTER_H, COL_FOOTER_BG);
     tft.drawFastHLine(0, fy, SCREEN_W, COL_TEXT_DIM);
 
-    // ---- UP button (scroll arrow) ----
+    // ---- VIEW button ----
     tft.fillRoundRect(3, fy + 4, 38, 17, 3, COL_BTN);
     tft.setTextColor(COL_TEXT, COL_BTN);
     tft.setTextSize(1);
     tft.setTextDatum(MC_DATUM);
-    tft.drawString("^ UP", 22, fy + 13);
+    tft.drawString("VIEW", 22, fy + 13);
 
     // ---- Network count + age (centre) ----
     char buf[32];
@@ -164,7 +172,8 @@ void drawFooter(int networkCount, uint32_t lastScanMs)
         snprintf(buf, sizeof(buf), "%d nets  %lus ago", networkCount, (unsigned long)age);
     }
     tft.setTextColor(COL_TEXT_DIM, COL_FOOTER_BG);
-    tft.drawString(buf, SCREEN_W / 2, fy + 13);
+    tft.drawString(viewMode == VIEW_CHANNELS ? "GRAPH" : "LIST", 64, fy + 13);
+    tft.drawString(buf, SCREEN_W / 2 + 28, fy + 13);
 
     // ---- SCAN button ----
     tft.fillRoundRect(SCREEN_W - 72, fy + 4, 69, 17, 3, COL_BTN);
@@ -246,6 +255,66 @@ void drawNetworkList(const NetworkEntry* nets, int count, int scrollOffset)
         int thumbY = NET_AREA_Y + (scrollOffset * (trackH - thumbH)) / (count - MAX_VISIBLE);
         tft.fillRect(SCREEN_W - 3, thumbY, 3, thumbH, COL_SCROLLBAR);
     }
+}
+
+void drawCongestionGraph(const ChannelStat* stats, int count, uint8_t hottestChannel)
+{
+    tft.fillRect(0, NET_AREA_Y, SCREEN_W, NET_AREA_H, COL_BG);
+
+    const int left   = 18;
+    const int right  = SCREEN_W - 8;
+    const int top    = NET_AREA_Y + 20;
+    const int bottom = SCREEN_H - FOOTER_H - 18;
+    const int graphW = right - left;
+    const int graphH = bottom - top;
+    const int slotW  = graphW / count;
+    uint16_t maxScore = 1;
+
+    for (int i = 0; i < count; i++) {
+        if (stats[i].score > maxScore) maxScore = stats[i].score;
+    }
+
+    tft.setTextSize(1);
+    tft.setTextColor(COL_TITLE, COL_BG);
+    tft.drawString("2.4 GHz Congestion/Count per Ch", 8, NET_AREA_Y + 3);
+
+    char hotBuf[32];
+    snprintf(hotBuf, sizeof(hotBuf), "Hot: ch%u", hottestChannel);
+    tft.setTextColor(COL_TEXT_DIM, COL_BG);
+    tft.drawRightString(hotBuf, SCREEN_W - 8, NET_AREA_Y + 3, 1);
+
+    for (int i = 0; i < 4; i++) {
+        int y = bottom - (graphH * i) / 3;
+        tft.drawFastHLine(left, y, graphW, COL_FOOTER_BG);
+    }
+
+    for (int i = 0; i < count; i++) {
+        const ChannelStat& stat = stats[i];
+        int x = left + i * slotW;
+        int barW = max(8, slotW - 4);
+        int barH = (graphH * stat.score) / maxScore;
+        int y = bottom - barH;
+        uint16_t col = congestionColor(stat.score);
+
+        if (stat.channel == 1 || stat.channel == 6 || stat.channel == 11) {
+            tft.drawFastVLine(x + barW / 2, top, graphH, COL_TEXT_DIM);
+        }
+
+        tft.fillRoundRect(x + 1, y, barW, max(2, barH), 2, col);
+
+        if (stat.apCount > 0) {
+            char countBuf[4];
+            snprintf(countBuf, sizeof(countBuf), "%u", stat.apCount);
+            tft.setTextColor(COL_TEXT, COL_BG);
+            tft.drawCentreString(countBuf, x + 1 + barW / 2, max(top - 1, y - 10), 1);
+        }
+
+        char chBuf[4];
+        snprintf(chBuf, sizeof(chBuf), "%u", stat.channel);
+        tft.setTextColor(stat.channel == hottestChannel ? COL_TITLE : COL_TEXT_DIM, COL_BG);
+        tft.drawCentreString(chBuf, x + 1 + barW / 2, bottom + 5, 1);
+    }
+
 }
 
 void drawScanningOverlay()

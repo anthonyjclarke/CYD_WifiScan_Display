@@ -1,9 +1,14 @@
-# WiFi Scanner — ESP32 CYD
+# WiFi Scanner v1.0.0 — ESP32 CYD
 
 Visual WiFi scanner for the **ESP32-2432S028R (Cheap Yellow Display)**.
-Displays nearby networks with signal strength, band, and security on the
-320×240 ILI9341 TFT with colour coding and touch navigation.
-A built-in web UI mirrors everything on any browser on the same network.
+Displays nearby 2.4 GHz networks with signal strength, channel congestion,
+and security on the 320×240 ILI9341 TFT with touch navigation.
+A built-in web UI mirrors the scan list, channel graph, and contention details
+in any browser on the same network.
+
+Current release: **v1.0.0**
+
+See [CHANGELOG.md](CHANGELOG.md) for release history.
 
 ---
 
@@ -11,9 +16,9 @@ A built-in web UI mirrors everything on any browser on the same network.
 
 | Feature       | Detail                                                         |
 | :------------ | :------------------------------------------------------------- |
-| Display       | Color-coded signal bars, 2.4 / 5 GHz badges, lock indicator   |
-| Touch         | Tap centre = scan · top/bottom swipe = scroll · UP button      |
-| Web UI        | Dark-themed dashboard, auto-refresh, signal bars, debug ctrl  |
+| Display       | Network list view plus 2.4 GHz channel congestion graph        |
+| Touch         | Footer `VIEW` toggle · tap graph/list centre = scan · top/bottom list scroll |
+| Web UI        | Dashboard, channel graph, contributor drilldown, debug control |
 | WiFiManager   | Captive-portal setup on first boot (AP: `WiFiScanner-AP`)      |
 | Auto-scan     | Rescans every 30 s; manual trigger via touch or `/api/scan`    |
 | Debug levels  | 0–4 at runtime via serial or `POST /api/debug`                 |
@@ -36,23 +41,34 @@ A built-in web UI mirrors everything on any browser on the same network.
 
 ## Display Layout (landscape 320×240)
 
+### List View
+
 ```
 +--------------------------------------------------+  ← 30 px header
 | WiFi Scanner       * SCANNING *   192.168.1.100  |
 +--------------------------------------------------+
 | #  SSID               BAND   BARS   RSSI   SEC   |  ← 8 rows × 23 px
 | 1  MyNetwork          2.4G   █████   -48   *      |
-| 2  Neighbour_5G       5G     ████    -61   *      |
+| 2  GuestNet           2.4G   ████    -61   o      |
 | 3  GuestNet           2.4G   ██      -76   o      |
 | ...                                               |
 +--------------------------------------------------+  ← 26 px footer
-| ^ UP    8 nets  12s ago              SCAN v       |
+| VIEW  LIST  8 nets  12s ago          SCAN v       |
 +--------------------------------------------------+
 ```
 
-**Signal colours:** green > −50 · cyan −50→−65 · yellow −65→−75 · red < −75 dBm
+### Channel View
+
+The alternate display view renders a 14-channel 2.4 GHz congestion graph with:
+
+- colour-coded bars for low to severe contention
+- channel counts above active bars
+- emphasis on channels 1, 6, and 11
+- hottest channel label in the graph header
 
 **Security:** `*` = secured (orange) · `o` = open (green)
+
+**Congestion colours:** green low · yellow moderate · orange high · red severe
 
 ---
 
@@ -61,11 +77,15 @@ A built-in web UI mirrors everything on any browser on the same network.
 | Method | Endpoint        | Description                             |
 | :----- | :-------------- | :-------------------------------------- |
 | GET    | `/`             | HTML dashboard                          |
-| GET    | `/api/networks` | JSON network list                       |
+| GET    | `/api/networks` | JSON network list plus channel summary  |
 | GET    | `/api/status`   | Heap, uptime, scan count, debug level   |
 | POST   | `/api/scan`     | Trigger immediate scan                  |
 | GET    | `/api/debug`    | `{"level": N}`                          |
 | POST   | `/api/debug`    | Body `{"level": N}` — sets 0–4 runtime  |
+
+The web dashboard includes a channel congestion graph. Clicking a channel
+shows the specific scanned networks contributing to that channel's overlap,
+grouped into on-channel and adjacent-channel contributors with overlap weights.
 
 ---
 
@@ -85,13 +105,13 @@ Credentials are saved to NVS — subsequent boots connect automatically.
 
 ```
 src/
-  main.cpp          — setup / loop, WiFiManager, scan logic, touch
-  display_ui.cpp    — TFT rendering (TFT_eSPI)
+  main.cpp          — setup / loop, scan logic, channel summary, touch
+  display_ui.cpp    — TFT network list + congestion graph rendering
   web_server.cpp    — ESPAsyncWebServer + embedded HTML dashboard
 include/
   config.h          — pin definitions, layout constants, RGB565 colours
   debug.h           — levelled debug macros (DBG_ERROR/WARN/INFO/VERBOSE)
-  display_ui.h      — display API + NetworkEntry struct
+  display_ui.h      — display API + scan/channel shared structs
   web_server.h      — web server init signature
 platformio.ini      — board, libraries, TFT_eSPI build flags
 ```
@@ -105,8 +125,8 @@ platformio.ini      — board, libraries, TFT_eSPI build flags
 | bodmer/TFT_eSPI          | ^2.5.43  | ILI9341 display driver     |
 | paulstoffregen/XPT2046   | latest   | Resistive touch controller |
 | tzapu/WiFiManager        | ^2.0.17  | Captive-portal WiFi setup  |
-| me-no-dev/ESPAsyncWebServer | ^1.2.3 | Non-blocking HTTP server   |
-| me-no-dev/AsyncTCP       | ^1.1.1   | Async TCP layer             |
+| mathieucarbou/ESP Async WebServer | ^3.0.6 | Non-blocking HTTP server |
+| mathieucarbou/AsyncTCP   | ^3.3.2   | Async TCP layer            |
 | bblanchon/ArduinoJson    | ^6.21.0  | JSON serialisation         |
 
 ---

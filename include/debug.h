@@ -24,7 +24,7 @@
  * RUNTIME CONTROL:
  *   Set debugLevel variable (0-4) to change verbosity at runtime
  *   Web API: GET /api/debug  →  {"level": N}
- *            POST /api/debug  body: level=N
+ *            POST /api/debug  body: {"level": N}
  */
 
 #ifndef DEBUG_LEVEL

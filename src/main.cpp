@@ -271,7 +271,7 @@ void setup()
 
     // Display
     initDisplay();
-    drawBootScreen("WiFi Scanner", "ESP32 CYD  v1.0");
+    drawBootScreen("WiFi Scanner", "ESP32 CYD  v1.1");
     delay(800);
 
     // Touch — VSPI with CYD-specific pins (TFT_eSPI owns HSPI)

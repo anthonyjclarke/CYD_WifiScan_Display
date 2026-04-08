@@ -1,4 +1,4 @@
-# WiFi Scanner v1.0.0 — ESP32 CYD
+# WiFi Scanner v1.1.0 — ESP32 CYD
 
 Visual WiFi scanner for the **ESP32-2432S028R (Cheap Yellow Display)**.
 Displays nearby 2.4 GHz networks with signal strength, channel congestion,
@@ -6,7 +6,7 @@ and security on the 320×240 ILI9341 TFT with touch navigation.
 A built-in web UI mirrors the scan list, channel graph, and contention details
 in any browser on the same network.
 
-Current release: **v1.0.0**
+Current release: **v1.1.0**
 
 See [CHANGELOG.md](CHANGELOG.md) for release history.
 
@@ -77,7 +77,7 @@ The alternate display view renders a 14-channel 2.4 GHz congestion graph with:
 | Method | Endpoint        | Description                             |
 | :----- | :-------------- | :-------------------------------------- |
 | GET    | `/`             | HTML dashboard                          |
-| GET    | `/api/networks` | JSON network list plus channel summary  |
+| GET    | `/api/networks` | JSON network list plus channel summary, including `scanAge` seconds  |
 | GET    | `/api/status`   | Heap, uptime, scan count, debug level   |
 | POST   | `/api/scan`     | Trigger immediate scan                  |
 | GET    | `/api/debug`    | `{"level": N}`                          |

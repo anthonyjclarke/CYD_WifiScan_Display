@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project uses Semantic Versioning.
 
+## [1.1.0] - 2026-04-08
+
+Documentation and service update.
+
+### Changed
+
+- Corrected the `/api/networks` contract to report `scanAge` seconds instead of an uptime-derived timestamp.
+- Updated the web dashboard to display the last scan age correctly.
+- Made `/api/networks` fail safely with `503` if shared scan data is temporarily locked.
+- Fixed the default `upload_port` value in `platformio.ini`.
+- Brought README, CLAUDE notes, and debug API documentation back in sync with the implementation.
+
 ## [1.0.0] - 2026-03-15
 
 Initial release.

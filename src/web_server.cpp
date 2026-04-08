@@ -169,7 +169,7 @@ select{background:#1e293b;color:var(--text);border:1px solid var(--border);
 </div>
 
 <script>
-let lastScanTs = 0;
+let lastScanAge = 0;
 let lastNetworks = [];
 let selectedChannel = 1;
 
@@ -350,7 +350,7 @@ function selectChannel(channel){
 async function fetchNets(){
   try{
     const d=await(await fetch('/api/networks')).json();
-    lastScanTs=d.scanTime;
+    lastScanAge=d.scanAge||0;
     lastNetworks=d.networks||[];
     window.lastChannels=d.channels||[];
     renderChannelGraph(d.channels||[]);
@@ -384,9 +384,10 @@ async function fetchStatus(){
     document.getElementById('s-state').textContent=d.scanning?'Scanning…':'Idle';
     document.getElementById('s-state').style.color=d.scanning?'#eab308':'#22c55e';
     document.getElementById('dbg-sel').value=d.debugLevel;
-    if(lastScanTs>0){
-      const age=Math.round((Date.now()/1000)-lastScanTs);
-      document.getElementById('scan-age').textContent='Last: '+age+'s ago';
+    if(lastScanAge>0){
+      document.getElementById('scan-age').textContent='Last: '+lastScanAge+'s ago';
+    }else{
+      document.getElementById('scan-age').textContent='Last: --';
     }
   }catch(e){console.error(e);}
 }
@@ -431,13 +432,17 @@ static void handleNetworks(AsyncWebServerRequest* req)
 {
     StaticJsonDocument<6144> doc;
     doc["count"]    = *g_count;
-    doc["scanTime"] = *g_lastScanMs / 1000;  // epoch-like seconds (millis/1000)
+    doc["scanAge"]  = (*g_lastScanMs == 0) ? 0 : ((millis() - *g_lastScanMs) / 1000);
     doc["scanning"] = *g_scanning;
 
     JsonArray arr = doc.createNestedArray("networks");
     JsonArray channelArr = doc.createNestedArray("channels");
 
-    xSemaphoreTake(*g_mutex, pdMS_TO_TICKS(200));
+    if (xSemaphoreTake(*g_mutex, pdMS_TO_TICKS(200)) != pdTRUE) {
+        req->send(503, "application/json", "{\"error\":\"data_busy\"}");
+        return;
+    }
+
     for (int i = 0; i < *g_count; i++) {
         JsonObject o = arr.createNestedObject();
         o["ssid"]    = g_nets[i].ssid;
@@ -448,10 +453,10 @@ static void handleNetworks(AsyncWebServerRequest* req)
     }
     for (int i = 0; i < MAX_WIFI_CHANNELS; i++) {
         JsonObject c = channelArr.createNestedObject();
-        c["channel"] = g_channels[i].channel;
-        c["count"]   = g_channels[i].apCount;
+        c["channel"]  = g_channels[i].channel;
+        c["count"]    = g_channels[i].apCount;
         c["peakRssi"] = g_channels[i].peakRssi;
-        c["score"]   = g_channels[i].score;
+        c["score"]    = g_channels[i].score;
     }
     xSemaphoreGive(*g_mutex);
 

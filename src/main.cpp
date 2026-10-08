@@ -3,6 +3,7 @@
 #include <WiFiManager.h>
 #include <SPI.h>
 #include <XPT2046_Touchscreen.h>
+#include <esp_ota_ops.h>
 
 #include "debug.h"
 #include "config.h"
@@ -282,6 +283,7 @@ void setup()
     DBG_INFO("  WiFi Scanner  ESP32 CYD  v%s", FIRMWARE_VERSION);
     DBG_INFO("  Build: %s %s", __DATE__, __TIME__);
     DBG_INFO("=================================");
+    DBG_INFO("Running from %s", esp_ota_get_running_partition()->label);
 
 #if IMPROV_SETUP_ENABLED
     // Improv answers from here on: boot, WiFiManager portal, scans, loop()

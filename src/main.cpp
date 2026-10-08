@@ -260,7 +260,7 @@ void setup()
 {
     Serial.begin(115200);
     DBG_INFO("=================================");
-    DBG_INFO("  WiFi Scanner  ESP32 CYD");
+    DBG_INFO("  WiFi Scanner  ESP32 CYD  v%s", FIRMWARE_VERSION);
     DBG_INFO("  Build: %s %s", __DATE__, __TIME__);
     DBG_INFO("=================================");
 
@@ -271,7 +271,7 @@ void setup()
 
     // Display
     initDisplay();
-    drawBootScreen("WiFi Scanner", "ESP32 CYD  v1.1");
+    drawBootScreen("WiFi Scanner", "ESP32 CYD  v" FIRMWARE_VERSION);
     delay(800);
 
     // Touch — VSPI with CYD-specific pins (TFT_eSPI owns HSPI)
@@ -293,7 +293,7 @@ void setup()
     wm.setConfigPortalTimeout(120);
     wm.setConnectTimeout(15);
 
-    if (!wm.autoConnect("WiFiScanner-AP")) {
+    if (!wm.autoConnect(AP_NAME)) {
         DBG_ERROR("WiFiManager timed out — restarting");
         delay(2000);
         ESP.restart();

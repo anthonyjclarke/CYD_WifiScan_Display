@@ -1,6 +1,15 @@
 #pragma once
 
 // ============================================================
+// Firmware identity  (read by the web installer tooling)
+// ============================================================
+// #define, not constexpr: pasted into string literals ("v" FIRMWARE_VERSION).
+#define FIRMWARE_VERSION "1.2.0-dev"
+constexpr const char *PROJECT_NAME = "CYD_WifiScan_Display";  // frozen: Improv + manifest name
+constexpr const char *PROJECT_REPO_URL = "https://github.com/anthonyjclarke/CYD_WifiScan_Display";
+#define AP_NAME "WiFiScanner-AP"   // WiFiManager setup hotspot
+
+// ============================================================
 // CYD (ESP32-2432S028R) Hardware Pin Definitions
 // ============================================================
 

@@ -1,4 +1,4 @@
-# WiFi Scanner v1.1.0 — ESP32 CYD
+# WiFi Scanner v1.2.0 — ESP32 CYD
 
 Visual WiFi scanner for the **ESP32-2432S028R (Cheap Yellow Display)**.
 Displays nearby 2.4 GHz networks with signal strength, channel congestion,
@@ -6,9 +6,41 @@ and security on the 320×240 ILI9341 TFT with touch navigation.
 A built-in web UI mirrors the scan list, channel graph, and contention details
 in any browser on the same network.
 
-Current release: **v1.1.0**
+Current release: **v1.2.0**
 
 See [CHANGELOG.md](CHANGELOG.md) for release history.
+
+---
+
+## Install
+
+**[anthonyjclarke.github.io/CYD_WifiScan_Display][installer]** installs the
+latest release from the browser – no PlatformIO, no drivers to build. It needs
+desktop Chrome, Edge or Opera.
+
+1. Pick the board – CYD 2.8″ (ESP32-2432S028R).
+2. Plug it in with a USB data cable, click **Connect & install** and choose its
+   port.
+3. On a new board, say yes to erasing it. When flashing finishes, choose
+   **Configure WiFi** and pick your network. (Or skip it and join the
+   `WiFiScanner-AP` hotspot as in [First Boot](#first-boot).)
+4. **Visit device** opens the scanner's web dashboard.
+
+A board already running this firmware is recognised and offered **Update**,
+which keeps its WiFi credentials. Each [release][releases] also carries the
+images for flashing by hand. `*-firmware.bin` is the app alone (offset
+`0x10000`; this firmware has no web update page). `*-merged.bin` is a clean
+install at `0x0` with esptool, and it **erases settings and WiFi**. Nothing
+else is needed – no API keys or accounts.
+
+**Upgrading from v1.1.0 or earlier:** older firmware can't identify itself
+to the installer, so it is offered **Install** rather than Update. Answer
+**No** to erasing and your WiFi credentials are kept. v1.2.0 also moves to the
+standard dual-OTA partition table; NVS stays where it was, and the unused
+filesystem partition is reformatted.
+
+[installer]: https://anthonyjclarke.github.io/CYD_WifiScan_Display/
+[releases]: https://github.com/anthonyjclarke/CYD_WifiScan_Display/releases
 
 ---
 
@@ -101,6 +133,29 @@ Credentials are saved to NVS — subsequent boots connect automatically.
 
 ---
 
+## Building
+
+PlatformIO, one env: `pio run -e esp32-cyd -t upload`. The platform is pinned
+to `espressif32@6.12.0` (arduino-esp32 2.0.17); an unpinned build pulls
+arduino-esp32 3.x and fails.
+
+Release images are built only by CI, from a `v*` tag on `main`
+(`.github/workflows/firmware.yml`, using
+[cyd-web-installer](https://github.com/anthonyjclarke/cyd-web-installer)).
+**Never publish a local build.** To try the installer from a local build,
+assemble the site and serve it on localhost (Web Serial needs a secure origin,
+and localhost counts):
+
+```bash
+python3 ../cyd-web-installer/tools/make_manifests.py --out _site
+```
+
+```bash
+python3 -m http.server 8000 --directory _site
+```
+
+---
+
 ## Project Structure
 
 ```
@@ -108,12 +163,16 @@ src/
   main.cpp          — setup / loop, scan logic, channel summary, touch
   display_ui.cpp    — TFT network list + congestion graph rendering
   web_server.cpp    — ESPAsyncWebServer + embedded HTML dashboard
+  network/improv_setup.*  — Improv-Serial for the web installer (copy-in)
+lib/ImprovWiFi/     — vendored Improv library with parser fix (copy-in)
+tools/merge_bin.py  — post-build: flash_parts.json + merged image
 include/
   config.h          — pin definitions, layout constants, RGB565 colours
   debug.h           — levelled debug macros (DBG_ERROR/WARN/INFO/VERBOSE)
   display_ui.h      — display API + scan/channel shared structs
   web_server.h      — web server init signature
 platformio.ini      — board, libraries, TFT_eSPI build flags
+partitions_custom.csv — 4 MB dual-OTA layout (frozen)
 ```
 
 ---

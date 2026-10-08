@@ -1,6 +1,6 @@
 # Project: CYD WiFi Scanner Display
 
-ESP32-2432S028R WiFi scanner displaying nearby 2.4 GHz networks on 320×240 ILI9341 TFT with touch navigation and HTTP dashboard. v1.1.0 (2026-04-08).
+ESP32-2432S028R WiFi scanner displaying nearby 2.4 GHz networks on 320×240 ILI9341 TFT with touch navigation and HTTP dashboard. v1.2.0-dev; `FIRMWARE_VERSION` in `config.h`.
 
 ## Hardware
 - **MCU:** ESP32-2432S028R (dual-core 240 MHz)
@@ -66,3 +66,8 @@ ESP32-2432S028R WiFi scanner displaying nearby 2.4 GHz networks on 320×240 ILI9
 - Signal bars skip value 3: strong=5, good=4, fair=2, weak=1 (intentional visual weighting).
 - WiFiManager portal timeout 120 s; calls `ESP.restart()` on timeout.
 - LDR (GPIO 34) wired but unused in firmware.
+
+## Web installer and releases
+- Release images come only from CI on a `v*` tag on `main`; never publish a local build. Never put `firmware-merged.bin` in a manifest.
+- `PROJECT_NAME` and `partitions_custom.csv` are frozen (a rename turns Update into Install; a layout change needs an erase note).
+- Improv is vendored in `lib/ImprovWiFi/` — never add it to `lib_deps`. `improvTick()` runs in `improvTask` (main.cpp), not `loop()`, because a scan blocks `loop()` 2–4 s; it must keep running at least every ~1 s. Only that task reads Serial.

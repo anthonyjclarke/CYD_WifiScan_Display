@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdint.h>
+
 // ============================================================
 // Firmware identity  (read by the web installer tooling)
 // ============================================================
@@ -8,6 +10,12 @@
 constexpr const char *PROJECT_NAME = "CYD_WifiScan_Display";  // frozen: Improv + manifest name
 constexpr const char *PROJECT_REPO_URL = "https://github.com/anthonyjclarke/CYD_WifiScan_Display";
 #define AP_NAME "WiFiScanner-AP"   // WiFiManager setup hotspot
+
+// Improv-Serial: the web installer's "Configure WiFi" and "Update" detection.
+// Serviced from its own task (see main.cpp) because a WiFi scan blocks loop()
+// for 2-4 s and ESP Web Tools waits only 1.5 s for an answer.
+#define IMPROV_SETUP_ENABLED 1
+#define IMPROV_DEVICE_PREFIX "WiFiScan"
 
 // ============================================================
 // CYD (ESP32-2432S028R) Hardware Pin Definitions

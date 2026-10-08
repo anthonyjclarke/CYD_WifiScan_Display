@@ -8,6 +8,7 @@
 #include "config.h"
 #include "display_ui.h"
 #include "web_server.h"
+#include "network/improv_setup.h"
 
 // ============================================================
 // debugLevel definition  (extern-declared in debug.h)
@@ -48,6 +49,24 @@ static void requestScan();   // safe to call from any task/context
 static void doScan();        // blocking synchronous scan — call from loop() only
 static void rebuildChannelStats();
 static void redrawActiveView();
+
+// ============================================================
+// Improv-Serial task  (web installer: device info, Configure/Change WiFi)
+//
+// WHY a task, not just loop():
+//   ESP Web Tools waits only 1.5 s for an Improv answer on Connect.
+//   loop() blocks 2-4 s per synchronous scan, and setup() blocks in
+//   WiFiManager's connect wait and portal. A task beside loop() on
+//   core 1 keeps answering through all of them (the scan wait and
+//   the portal's yield() both let it run). Only this task reads Serial.
+// ============================================================
+static void improvTask(void*)
+{
+    for (;;) {
+        improvTick();   // restarts once Improv credentials connect
+        delay(10);
+    }
+}
 
 // ============================================================
 // WiFiManager AP-mode callback
@@ -263,6 +282,12 @@ void setup()
     DBG_INFO("  WiFi Scanner  ESP32 CYD  v%s", FIRMWARE_VERSION);
     DBG_INFO("  Build: %s %s", __DATE__, __TIME__);
     DBG_INFO("=================================");
+
+#if IMPROV_SETUP_ENABLED
+    // Improv answers from here on: boot, WiFiManager portal, scans, loop()
+    improvBegin();
+    xTaskCreatePinnedToCore(improvTask, "improv", 4096, nullptr, 1, nullptr, 1);
+#endif
 
     // RGB LED off (active LOW)
     pinMode(LED_R_PIN, OUTPUT); digitalWrite(LED_R_PIN, HIGH);

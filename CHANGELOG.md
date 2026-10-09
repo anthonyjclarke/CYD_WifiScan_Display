@@ -13,6 +13,7 @@ Browser installer release.
 - Web installer at https://anthonyjclarke.github.io/CYD_WifiScan_Display/ (ESP Web Tools, via cyd-web-installer): install, Update and Configure WiFi from Chrome or Edge.
 - Improv-Serial, always on, in its own FreeRTOS task so it answers during the 2–4 s synchronous scans. A provisioned board is offered **Update** (settings kept); a new one gets **Configure WiFi** over USB.
 - `Firmware` CI workflow: builds every push; a `v*` tag on `main` publishes the release (`*-firmware.bin`, `*-merged.bin`, `SHA256SUMS.txt`) and the installer page.
+- Vendored Improv library at cyd-web-installer 1.0.1: each packet starts on a new line, so Connect reliably offers **Update** even when the serial stream opens mid-line.
 - `FIRMWARE_VERSION`, `PROJECT_NAME` and `AP_NAME` in `config.h`; the boot screen and log show the version, and the log shows the running OTA partition.
 
 ### Changed

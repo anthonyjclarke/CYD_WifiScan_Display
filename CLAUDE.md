@@ -1,6 +1,6 @@
 # Project: CYD WiFi Scanner Display
 
-ESP32-2432S028R WiFi scanner displaying nearby 2.4 GHz networks on 320×240 ILI9341 TFT with touch navigation and HTTP dashboard. v1.2.0-dev; `FIRMWARE_VERSION` in `config.h`.
+ESP32-2432S028R WiFi scanner displaying nearby 2.4 GHz networks on 320×240 ILI9341 TFT with touch navigation and HTTP dashboard. v1.2.0; `FIRMWARE_VERSION` in `config.h`.
 
 ## Hardware
 - **MCU:** ESP32-2432S028R (dual-core 240 MHz)

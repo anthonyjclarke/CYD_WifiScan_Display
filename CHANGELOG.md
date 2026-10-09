@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project uses Semantic Versioning.
 
-## [1.2.0] DD-MM-YYYY
+## [1.2.0] 09-10-2026
 
 Browser installer release.
 

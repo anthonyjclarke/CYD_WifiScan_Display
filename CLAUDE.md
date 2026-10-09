@@ -71,3 +71,4 @@ ESP32-2432S028R WiFi scanner displaying nearby 2.4 GHz networks on 320×240 ILI9
 - Release images come only from CI on a `v*` tag on `main`; never publish a local build. Never put `firmware-merged.bin` in a manifest.
 - `PROJECT_NAME` and `partitions_custom.csv` are frozen (a rename turns Update into Install; a layout change needs an erase note).
 - Improv is vendored in `lib/ImprovWiFi/` — never add it to `lib_deps`. `improvTick()` runs in `improvTask` (main.cpp), not `loop()`, because a scan blocks `loop()` 2–4 s; it must keep running at least every ~1 s. Only that task reads Serial.
+- Before the next release, clear *Tests owed* in docs/WEB_INSTALLER.md (RUNBOOK 5b).

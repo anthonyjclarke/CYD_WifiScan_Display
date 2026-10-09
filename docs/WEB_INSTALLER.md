@@ -36,21 +36,40 @@ copy-in's non-blocking portal loop isn't needed. Only that task reads Serial.
 
 ---
 
-## Hardware test matrix (RUNBOOK step 5)
+## Smoke test (RUNBOOK 5a) – passed 09-10-2026
 
-Preview: CI `site-preview` artifact from `dev`, served on
-`http://localhost:8000`, desktop Chrome on macOS.
+Board: CYD 2.8″ ESP32-2432S028R, ESP32-D0WD-V3 rev 3.1, MAC
+`b0:cb:d8:da:ae:8c`. Preview: CI `site-preview` from `dev` at `cbac2c8`
+(run 37891754178, green), served on localhost, desktop Chrome on macOS.
 
-| #   | Case                               | Expect                             | Status |
-|:----|:-----------------------------------|:-----------------------------------|:-------|
-| 1   | Fresh install, erased              | Install + erase; Improv WiFi       | –      |
-| 2   | Update on provisioned board        | "Update", WiFi kept                | –      |
-| 2a  | Update while a scan is running     | Still offered "Update"             | –      |
-| 2b  | Install over v1.1.0, no erase      | Install offered; WiFi kept         | –      |
-| 3   | Board on `app1`                    | N/A – no OTA in this firmware      | N/A    |
-| 4   | Wrong board                        | N/A – single env                   | N/A    |
-| 5   | `*-firmware.bin` via web `/update` | N/A – no `/update` page            | N/A    |
-| 6   | macOS Chrome                       | Port found, flash completes        | –      |
-| 7   | Windows Edge                       | Optional                           | –      |
+| Step                                   | Result                                    |
+|:---------------------------------------|:------------------------------------------|
+| CI green, every env (`esp32-cyd`)      | Pass                                      |
+| `pio run -t erase`, install with erase | Pass – flashed `1.2.0-dev`                |
+| Configure WiFi over Improv             | Pass – joined, 192.168.1.95               |
+| Boot log                               | Pass – `Running from app0`, no crash      |
+| First scan, web dashboard              | Pass – 19 networks; `/` 200, `/api/status` |
+| Connect again                          | Pass – "Connected to WiFiScan-CBB0"       |
 
-Board MAC and dates are recorded per case below as tests run.
+The second Connect showed `CYD_WifiScan_Display 1.2.0-dev (ESP32)` with Visit
+Device, Change Wi-Fi, Logs & Console and Erase User Data – the same check that
+makes **Update** appear. The boot log also shows a harmless
+`addApbChangeCallback(): duplicate func` core message at about 1.2 s.
+
+The Improv device name is `WiFiScan-CBB0`, not the MAC's last four digits
+(`AE8C`): the shared `improv_setup.cpp` masks `getEfuseMac()`, whose low bytes
+are the first MAC bytes. Reported to cyd-web-installer; cosmetic only.
+
+---
+
+## Tests owed
+
+Smoke-tested only. Run these on the next real work on this project, or before
+the next release, and tick them off with date and board MAC.
+
+- [x] Case 1 – fresh install, erased (only one board env) – 09-10-2026, `b0:cb:d8:da:ae:8c`
+- [ ] Case 2 – Update on a provisioned board (settings kept)
+- [ ] Case 2a – Update offered while a scan is running (Improv task)
+- [ ] Case 2b – Install over v1.1.0 with no erase keeps WiFi (partition switch)
+- N/A Case 3 – Update from `app1` (no OTA in this firmware)
+- N/A Case 4 – wrong board image (single env)

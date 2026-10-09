@@ -60,6 +60,13 @@ The Improv device name is `WiFiScan-CBB0`, not the MAC's last four digits
 (`AE8C`): the shared `improv_setup.cpp` masks `getEfuseMac()`, whose low bytes
 are the first MAC bytes. Reported to cyd-web-installer; cosmetic only.
 
+**Release check (RUNBOOK 7.4) – passed 09-10-2026.** Tag `v1.2.0` run
+37893762595 built and published. The live page, `index.json` (1.2.0) and all
+four parts load; the release has `-firmware.bin`, `-merged.bin` and
+`SHA256SUMS.txt`. An Update from the live page took the bench board from
+`1.2.0-dev` to `1.2.0` with no erase question; it booted `app0` and rejoined
+its saved WiFi with no portal.
+
 ---
 
 ## Tests owed
@@ -68,7 +75,7 @@ Smoke-tested only. Run these on the next real work on this project, or before
 the next release, and tick them off with date and board MAC.
 
 - [x] Case 1 – fresh install, erased (only one board env) – 09-10-2026, `b0:cb:d8:da:ae:8c`
-- [ ] Case 2 – Update on a provisioned board (settings kept)
+- [x] Case 2 – Update on a provisioned board (settings kept) – 09-10-2026, `b0:cb:d8:da:ae:8c`, live page 1.2.0-dev → 1.2.0, no erase, saved WiFi rejoined
 - [ ] Case 2a – Update offered while a scan is running (Improv task)
 - [ ] Case 2b – Install over v1.1.0 with no erase keeps WiFi (partition switch)
 - N/A Case 3 – Update from `app1` (no OTA in this firmware)

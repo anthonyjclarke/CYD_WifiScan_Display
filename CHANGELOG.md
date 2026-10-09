@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project uses Semantic Versioning.
 
+## [1.3.0] DD-MM-YYYY
+
+### Fixed
+
+- Improv device name now ends in the MAC's last four hex digits (e.g. `WiFiScan-AE8C`), not the shared vendor prefix (`WiFiScan-CBB0`). Re-copied `improv_setup.cpp` from cyd-web-installer 1.0.3.
+
 ## [1.2.0] 09-10-2026
 
 Browser installer release.
